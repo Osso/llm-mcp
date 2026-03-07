@@ -797,10 +797,13 @@ name = "llm-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "llm-agent",
  "llm-sdk",
  "rmcp",
  "schemars",
  "serde",
+ "serde_json",
  "tokio",
 ]
 
