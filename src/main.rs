@@ -25,7 +25,7 @@ struct Config {
     max_turns: u32,
 }
 
-fn default_backend() -> String { "openai".into() }
+fn default_backend() -> String { "codex".into() }
 fn default_model() -> String { "gpt-5.4".into() }
 fn default_max_turns() -> u32 { 20 }
 
@@ -79,7 +79,7 @@ impl LlmMcp {
 struct CompleteParams {
     /// The prompt to send to the model
     prompt: String,
-    /// Backend override: "openrouter" or "openai"
+    /// Backend override: "codex", "openrouter", or "openai"
     backend: Option<String>,
     /// Model name override
     model: Option<String>,
@@ -276,6 +276,10 @@ async fn run_completion(params: &CompleteParams) -> Result<Output> {
                 .api_key_env("OPENAI_API_KEY");
             run_with_client(&client, &params.prompt, system_prompt, config.max_turns).await
         }
+        "codex" => {
+            let client = llm_sdk::codex::Codex::new(model);
+            run_with_client(&client, &params.prompt, system_prompt, config.max_turns).await
+        }
         other => anyhow::bail!("unknown backend: {other}"),
     }
 }
@@ -299,7 +303,7 @@ fn format_output(output: Output) -> String {
 #[tool_router]
 impl LlmMcp {
     #[tool(
-        description = "Send a prompt to an LLM backend (OpenRouter, OpenAI). The model can use Bash, Read, Write, Glob, Grep tools. Bash commands are validated by claude-bash-hook. Defaults from ~/.config/llm-mcp/config.toml."
+        description = "Send a prompt to an LLM backend (Codex, OpenRouter, OpenAI). The model can use Bash, Read, Write, Glob, Grep tools. Bash commands are validated by claude-bash-hook. Defaults to Codex gpt-5.4."
     )]
     async fn complete(&self, Parameters(params): Parameters<CompleteParams>) -> String {
         match run_completion(&params).await {
@@ -314,9 +318,9 @@ impl ServerHandler for LlmMcp {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "LLM MCP server — delegate subtasks to cheaper models (OpenRouter, OpenAI). \
-                 Call complete with a prompt. Defaults from ~/.config/llm-mcp/config.toml, \
-                 overridable per-call via backend/model/system_prompt params."
+                "LLM MCP server — delegate subtasks to other models (Codex/ChatGPT Pro, OpenRouter, OpenAI). \
+                 Call complete with a prompt. Defaults to Codex (gpt-5.4) using ChatGPT subscription. \
+                 Config at ~/.config/llm-mcp/config.toml, overridable per-call."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),

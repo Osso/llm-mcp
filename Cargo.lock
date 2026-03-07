@@ -812,7 +812,6 @@ dependencies = [
 [[package]]
 name = "llm-sdk"
 version = "0.1.0"
-source = "git+https://github.com/Osso/llm-sdk#e1e00a60e303a35cd2c1f2ac3031967b2b51db6c"
 dependencies = [
  "async-trait",
  "dirs",
