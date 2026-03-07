@@ -1,0 +1,16 @@
+[package]
+name = "llm-mcp"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "llm-mcp"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+llm-sdk = { path = "/syncthing/Sync/Projects/lib/llm-sdk" }
+rmcp = { version = "0.9", features = ["server", "transport-io"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt", "macros"] }
