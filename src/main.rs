@@ -9,6 +9,58 @@ use rmcp::transport::stdio;
 use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+// --- Config ---
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    #[serde(default = "default_backend")]
+    backend: String,
+    #[serde(default = "default_model")]
+    model: String,
+    #[serde(default)]
+    system_prompt: Option<String>,
+    #[serde(default = "default_max_turns")]
+    max_turns: u32,
+}
+
+fn default_backend() -> String { "openai".into() }
+fn default_model() -> String { "gpt-5.4".into() }
+fn default_max_turns() -> u32 { 20 }
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            backend: default_backend(),
+            model: default_model(),
+            system_prompt: None,
+            max_turns: default_max_turns(),
+        }
+    }
+}
+
+impl Config {
+    fn load() -> Self {
+        let path = config_path();
+        match std::fs::read_to_string(&path) {
+            Ok(contents) => toml::from_str(&contents).unwrap_or_else(|e| {
+                eprintln!("llm-mcp: bad config {}: {e}", path.display());
+                Config::default()
+            }),
+            Err(_) => Config::default(),
+        }
+    }
+}
+
+fn config_path() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .join("llm-mcp")
+        .join("config.toml")
+}
+
+// --- MCP server ---
 
 #[derive(Clone)]
 struct LlmMcp {
@@ -27,11 +79,11 @@ impl LlmMcp {
 struct CompleteParams {
     /// The prompt to send to the model
     prompt: String,
-    /// Backend to use: "openrouter" or "openai" (default: "openrouter")
+    /// Backend override: "openrouter" or "openai"
     backend: Option<String>,
-    /// Model name (default: "google/gemini-2.5-flash")
+    /// Model name override
     model: Option<String>,
-    /// System prompt to prepend
+    /// System prompt override
     system_prompt: Option<String>,
 }
 
@@ -101,8 +153,7 @@ impl ToolHook for BashHook {
         if ctx.tool_name != "Bash" {
             return Ok(HookDecision::Allow);
         }
-        let command = extract_command(ctx.arguments);
-        let command = match command {
+        let command = match extract_command(ctx.arguments) {
             Some(c) => c,
             None => return Ok(HookDecision::Allow),
         };
@@ -180,7 +231,9 @@ fn to_output(output: llm_agent::AgentOutput) -> Output {
 
 async fn run_with_client<C: llm_agent::ChatClient>(
     client: &C,
-    params: &CompleteParams,
+    prompt: &str,
+    system_prompt: Option<&str>,
+    max_turns: u32,
 ) -> Result<Output> {
     let tool_set = ToolSet::standard();
     let tj = tools_json(&tool_set);
@@ -188,15 +241,15 @@ async fn run_with_client<C: llm_agent::ChatClient>(
 
     let mut agent = AgentLoop::new(client, executor)
         .with_hook(BashHook)
-        .max_turns(20)
+        .max_turns(max_turns)
         .tools_json(tj);
 
-    if let Some(sp) = &params.system_prompt {
-        agent = agent.system_prompt(sp.clone());
+    if let Some(sp) = system_prompt {
+        agent = agent.system_prompt(sp);
     }
 
     let output = agent
-        .run(&params.prompt)
+        .run(prompt)
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -204,19 +257,24 @@ async fn run_with_client<C: llm_agent::ChatClient>(
 }
 
 async fn run_completion(params: &CompleteParams) -> Result<Output> {
-    let backend_name = params.backend.as_deref().unwrap_or("openrouter");
-    let model = params.model.as_deref().unwrap_or("google/gemini-2.5-flash");
+    let config = Config::load();
+    let backend = params.backend.as_deref().unwrap_or(&config.backend);
+    let model = params.model.as_deref().unwrap_or(&config.model);
+    let system_prompt = params
+        .system_prompt
+        .as_deref()
+        .or(config.system_prompt.as_deref());
 
-    match backend_name {
+    match backend {
         "openrouter" => {
             let client = llm_sdk::openrouter::OpenRouter::new(model)
                 .api_key_env("OPENROUTER_API_KEY");
-            run_with_client(&client, params).await
+            run_with_client(&client, &params.prompt, system_prompt, config.max_turns).await
         }
         "openai" => {
             let client = llm_sdk::openai::OpenAI::new(model)
                 .api_key_env("OPENAI_API_KEY");
-            run_with_client(&client, params).await
+            run_with_client(&client, &params.prompt, system_prompt, config.max_turns).await
         }
         other => anyhow::bail!("unknown backend: {other}"),
     }
@@ -236,12 +294,12 @@ fn format_output(output: Output) -> String {
     result
 }
 
-// --- MCP server ---
+// --- MCP tool ---
 
 #[tool_router]
 impl LlmMcp {
     #[tool(
-        description = "Send a prompt to an LLM backend (OpenRouter, OpenAI). The model can use Bash, Read, Write, Glob, Grep tools. Bash commands are validated by claude-bash-hook."
+        description = "Send a prompt to an LLM backend (OpenRouter, OpenAI). The model can use Bash, Read, Write, Glob, Grep tools. Bash commands are validated by claude-bash-hook. Defaults from ~/.config/llm-mcp/config.toml."
     )]
     async fn complete(&self, Parameters(params): Parameters<CompleteParams>) -> String {
         match run_completion(&params).await {
@@ -257,9 +315,8 @@ impl ServerHandler for LlmMcp {
         ServerInfo {
             instructions: Some(
                 "LLM MCP server — delegate subtasks to cheaper models (OpenRouter, OpenAI). \
-                 Call complete with a prompt and optional backend/model. \
-                 The model has access to Bash, Read, Write, Glob, Grep tools. \
-                 Bash commands are validated by claude-bash-hook."
+                 Call complete with a prompt. Defaults from ~/.config/llm-mcp/config.toml, \
+                 overridable per-call via backend/model/system_prompt params."
                     .into(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
