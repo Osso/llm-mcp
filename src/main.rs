@@ -331,8 +331,29 @@ impl ServerHandler for LlmMcp {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.len() > 1 && args[1] != "mcp-server" {
+        let prompt = args[1..].join(" ");
+        return run_cli(&prompt).await;
+    }
+
     let service = LlmMcp::new();
     let server = service.serve(stdio()).await?;
     server.waiting().await?;
+    Ok(())
+}
+
+async fn run_cli(prompt: &str) -> Result<()> {
+    let params = CompleteParams {
+        prompt: prompt.to_string(),
+        backend: None,
+        model: None,
+        system_prompt: None,
+    };
+    match run_completion(&params).await {
+        Ok(output) => print!("{}", format_output(output)),
+        Err(e) => eprintln!("Error: {e}"),
+    }
     Ok(())
 }
