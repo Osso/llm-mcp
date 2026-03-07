@@ -10,7 +10,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-llm-agent = { git = "https://github.com/Osso/llm-agent" }
+llm-agent = { path = "/syncthing/Sync/Projects/lib/llm-agent" }
 llm-sdk = { path = "/syncthing/Sync/Projects/lib/llm-sdk" }
 rmcp = { version = "0.9", features = ["server", "transport-io"] }
 schemars = "1"

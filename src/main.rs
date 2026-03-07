@@ -27,7 +27,7 @@ struct Config {
 
 fn default_backend() -> String { "codex".into() }
 fn default_model() -> String { "gpt-5.4".into() }
-fn default_max_turns() -> u32 { 20 }
+fn default_max_turns() -> u32 { 40 }
 
 impl Default for Config {
     fn default() -> Self {
@@ -259,7 +259,9 @@ async fn run_with_client<C: llm_agent::ChatClient>(
 async fn run_completion(params: &CompleteParams) -> Result<Output> {
     let config = Config::load();
     let backend = params.backend.as_deref().unwrap_or(&config.backend);
-    let model = params.model.as_deref().unwrap_or(&config.model);
+    let model = params.model.as_deref()
+        .filter(|m| !matches!(*m, "codex" | "openrouter" | "openai"))
+        .unwrap_or(&config.model);
     let system_prompt = params
         .system_prompt
         .as_deref()
