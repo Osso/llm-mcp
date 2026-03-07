@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
-llm-sdk = { path = "/syncthing/Sync/Projects/lib/llm-sdk" }
+llm-sdk = { git = "https://github.com/Osso/llm-sdk" }
 rmcp = { version = "0.9", features = ["server", "transport-io"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }

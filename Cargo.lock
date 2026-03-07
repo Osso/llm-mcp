@@ -781,6 +781,7 @@ checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 [[package]]
 name = "llm-agent"
 version = "0.1.0"
+source = "git+https://github.com/Osso/llm-agent#d8ec0a121b59800df32bc96764bb2cf8fd62ce62"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -806,6 +807,7 @@ dependencies = [
 [[package]]
 name = "llm-sdk"
 version = "0.1.0"
+source = "git+https://github.com/Osso/llm-sdk#e1e00a60e303a35cd2c1f2ac3031967b2b51db6c"
 dependencies = [
  "async-trait",
  "dirs",
