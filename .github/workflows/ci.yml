@@ -15,21 +15,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: cli/llm-mcp
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Osso/llm-agent
+          path: lib/llm-agent
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Osso/llm-sdk
+          path: lib/llm-sdk
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli/llm-mcp
 
       - name: Check formatting
         run: cargo fmt --check
+        working-directory: cli/llm-mcp
 
       - name: Clippy
         run: cargo clippy
+        working-directory: cli/llm-mcp
 
       - name: Build
         run: cargo build --release
+        working-directory: cli/llm-mcp
 
       - name: Run tests
         run: cargo test
-
+        working-directory: cli/llm-mcp
